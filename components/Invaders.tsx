@@ -51,12 +51,14 @@ export default function Invaders({ onBack }: InvadersProps) {
   const [level, setLevel] = useState(1)
   const [levelWords, setLevelWords] = useState<string[]>([])
   const [destroyedInLevel, setDestroyedInLevel] = useState(0)
+  const [spawnedInLevel, setSpawnedInLevel] = useState(0)
   const [combo, setCombo] = useState(0)
   const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; life: number }>>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const invaderIdRef = useRef(0)
   const particleIdRef = useRef(0)
   const gameLoopRef = useRef<NodeJS.Timeout | null>(null)
+  const spawnCountRef = useRef(0)
 
   const getLevelConfig = () => {
     return LEVEL_CONFIG[Math.min(level, 7)] || LEVEL_CONFIG[7]
@@ -98,19 +100,23 @@ export default function Invaders({ onBack }: InvadersProps) {
 
     const config = getLevelConfig()
     const spawnInterval = setInterval(() => {
-      const isBoss = Math.random() < config.bossChance
-      const newInvader: Invader = {
-        id: invaderIdRef.current++,
-        word: isBoss ? BOSS_WORDS[Math.floor(Math.random() * BOSS_WORDS.length)] : levelWords[Math.floor(Math.random() * levelWords.length)],
-        x: Math.random() * 80 + 10,
-        y: -10,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: config.speed,
-        alive: true,
-        type: isBoss ? 'boss' : 'normal',
-        health: isBoss ? 3 : 1
+      // Only spawn if we haven't reached the word count for this level
+      if (spawnCountRef.current < config.wordCount) {
+        const isBoss = Math.random() < config.bossChance
+        const newInvader: Invader = {
+          id: invaderIdRef.current++,
+          word: isBoss ? BOSS_WORDS[Math.floor(Math.random() * BOSS_WORDS.length)] : levelWords[Math.floor(Math.random() * levelWords.length)],
+          x: Math.random() * 80 + 10,
+          y: -10,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: config.speed,
+          alive: true,
+          type: isBoss ? 'boss' : 'normal',
+          health: isBoss ? 3 : 1
+        }
+        setInvaders(prev => [...prev, newInvader])
+        spawnCountRef.current += 1
       }
-      setInvaders(prev => [...prev, newInvader])
     }, config.spawnRate)
 
     return () => clearInterval(spawnInterval)
@@ -184,10 +190,12 @@ export default function Invaders({ onBack }: InvadersProps) {
     setLives(5)
     setLevel(1)
     setDestroyedInLevel(0)
+    setSpawnedInLevel(0)
     setCombo(0)
     setParticles([])
     invaderIdRef.current = 0
     particleIdRef.current = 0
+    spawnCountRef.current = 0
     inputRef.current?.focus()
   }
 
@@ -200,17 +208,21 @@ export default function Invaders({ onBack }: InvadersProps) {
     setLives(5)
     setLevel(1)
     setDestroyedInLevel(0)
+    setSpawnedInLevel(0)
     setCombo(0)
     setParticles([])
     invaderIdRef.current = 0
     particleIdRef.current = 0
+    spawnCountRef.current = 0
   }
 
   const handleLevelUp = () => {
     setLevel(prev => prev + 1)
     setDestroyedInLevel(0)
+    setSpawnedInLevel(0)
     setInvaders([])
     setCurrentInput('')
+    spawnCountRef.current = 0
     // Keep combo bonus for advancing levels
   }
 
