@@ -49,19 +49,27 @@ export default function Invaders({ onBack }: InvadersProps) {
   const gameLoopRef = useRef<NodeJS.Timeout | null>(null)
   const timeRef = useRef(0)
 
+  // Calculate current difficulty based on elapsed time
+  const calculateDifficulty = () => {
+    const secondsElapsed = timeRef.current / 1000
+    // Start at 0.05, gradually increase to maximum of 0.5 over 5 minutes
+    return Math.min(0.5, 0.05 + (secondsElapsed / 300) * 0.45)
+  }
+
   // Spawn new invaders
   useEffect(() => {
     if (!gameStarted || gameEnded) return
 
     const spawnInterval = setInterval(() => {
       const isBoss = wave > 0 && Math.random() < (wave > 5 ? 0.3 : 0.1)
+      const difficulty = calculateDifficulty()
       const newInvader: Invader = {
         id: invaderIdRef.current++,
         word: isBoss ? BOSS_WORDS[Math.floor(Math.random() * BOSS_WORDS.length)] : WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)],
         x: Math.random() * 80 + 10,
         y: -10,
         vx: (Math.random() - 0.5) * 0.3,
-        vy: 0.3 + wave * 0.05,
+        vy: difficulty,
         alive: true,
         type: isBoss ? 'boss' : 'normal',
         health: isBoss ? 3 : 1
