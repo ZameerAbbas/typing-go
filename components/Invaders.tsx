@@ -21,17 +21,25 @@ interface InvadersProps {
   onBack: () => void
 }
 
-const WORD_LIST = [
-  'keyboard', 'programming', 'javascript', 'typescript', 'react', 'component', 'function', 'variable',
-  'algorithm', 'database', 'interface', 'development', 'performance', 'optimization', 'framework',
-  'library', 'module', 'package', 'repository', 'terminal', 'command', 'server', 'client',
-  'request', 'response', 'handler', 'middleware', 'authentication', 'validation', 'security',
-  'pointer', 'memory', 'compiler', 'debugger', 'router', 'buffer', 'cache', 'syntax',
-  'method', 'property', 'instance', 'object', 'array', 'string', 'number', 'boolean',
-  'design', 'pattern', 'loop', 'conditional', 'boolean', 'data', 'type', 'class'
-]
+interface LevelConfig {
+  wordCount: number
+  speed: number
+  spawnRate: number
+  bossChance: number
+}
 
 const BOSS_WORDS = ['destroyer', 'sentinel', 'interceptor', 'invader', 'phantom', 'wraith', 'specter', 'hunter']
+
+// Level configurations - progressively harder
+const LEVEL_CONFIG: Record<number, LevelConfig> = {
+  1: { wordCount: 10, speed: 0.08, spawnRate: 1500, bossChance: 0 },
+  2: { wordCount: 15, speed: 0.12, spawnRate: 1200, bossChance: 0.05 },
+  3: { wordCount: 20, speed: 0.16, spawnRate: 1000, bossChance: 0.08 },
+  4: { wordCount: 25, speed: 0.22, spawnRate: 800, bossChance: 0.12 },
+  5: { wordCount: 30, speed: 0.28, spawnRate: 600, bossChance: 0.15 },
+  6: { wordCount: 35, speed: 0.35, spawnRate: 500, bossChance: 0.2 },
+  7: { wordCount: 40, speed: 0.42, spawnRate: 400, bossChance: 0.25 },
+}
 
 export default function Invaders({ onBack }: InvadersProps) {
   const [gameStarted, setGameStarted] = useState(false)
@@ -40,58 +48,79 @@ export default function Invaders({ onBack }: InvadersProps) {
   const [currentInput, setCurrentInput] = useState('')
   const [score, setScore] = useState(0)
   const [lives, setLives] = useState(5)
-  const [wave, setWave] = useState(1)
+  const [level, setLevel] = useState(1)
+  const [levelWords, setLevelWords] = useState<string[]>([])
+  const [destroyedInLevel, setDestroyedInLevel] = useState(0)
   const [combo, setCombo] = useState(0)
   const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; life: number }>>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const invaderIdRef = useRef(0)
   const particleIdRef = useRef(0)
   const gameLoopRef = useRef<NodeJS.Timeout | null>(null)
-  const timeRef = useRef(0)
 
-  // Calculate current difficulty based on elapsed time
-  const calculateDifficulty = () => {
-    const secondsElapsed = timeRef.current / 1000
-    // Start at 0.05, gradually increase to maximum of 0.5 over 5 minutes
-    return Math.min(0.5, 0.05 + (secondsElapsed / 300) * 0.45)
+  const getLevelConfig = () => {
+    return LEVEL_CONFIG[Math.min(level, 7)] || LEVEL_CONFIG[7]
   }
 
-  // Spawn new invaders
-  useEffect(() => {
-    if (!gameStarted || gameEnded) return
+  // Fetch words from open source API
+  const fetchLevelWords = async (count: number) => {
+    try {
+      const response = await fetch(`https://random-word-api.herokuapp.com/all`)
+      const allWords = await response.json()
+      // Filter words between 4-10 characters for gameplay variety
+      const filtered = allWords.filter((w: string) => w.length >= 4 && w.length <= 10)
+      const shuffled = filtered.sort(() => Math.random() - 0.5)
+      setLevelWords(shuffled.slice(0, count))
+    } catch (error) {
+      console.log('[v0] Error fetching words, using fallback')
+      // Fallback words if API fails
+      const fallback = ['keyboard', 'programming', 'javascript', 'typescript', 'react', 'component', 'function', 'variable',
+        'algorithm', 'database', 'interface', 'development', 'performance', 'optimization', 'framework',
+        'library', 'module', 'package', 'repository', 'terminal', 'command', 'server', 'client',
+        'request', 'response', 'handler', 'middleware', 'authentication', 'validation', 'security',
+        'pointer', 'memory', 'compiler', 'debugger', 'router', 'buffer', 'cache', 'syntax',
+        'method', 'property', 'instance', 'object', 'array', 'string', 'number', 'boolean',
+        'design', 'pattern', 'loop', 'conditional', 'data', 'type', 'class']
+      const shuffled = fallback.sort(() => Math.random() - 0.5)
+      setLevelWords(shuffled.slice(0, count))
+    }
+  }
 
+  // Load words when level changes
+  useEffect(() => {
+    const config = getLevelConfig()
+    fetchLevelWords(config.wordCount)
+  }, [level])
+
+  // Spawn new invaders based on level
+  useEffect(() => {
+    if (!gameStarted || gameEnded || levelWords.length === 0) return
+
+    const config = getLevelConfig()
     const spawnInterval = setInterval(() => {
-      const isBoss = wave > 0 && Math.random() < (wave > 5 ? 0.3 : 0.1)
-      const difficulty = calculateDifficulty()
+      const isBoss = Math.random() < config.bossChance
       const newInvader: Invader = {
         id: invaderIdRef.current++,
-        word: isBoss ? BOSS_WORDS[Math.floor(Math.random() * BOSS_WORDS.length)] : WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)],
+        word: isBoss ? BOSS_WORDS[Math.floor(Math.random() * BOSS_WORDS.length)] : levelWords[Math.floor(Math.random() * levelWords.length)],
         x: Math.random() * 80 + 10,
         y: -10,
         vx: (Math.random() - 0.5) * 0.3,
-        vy: difficulty,
+        vy: config.speed,
         alive: true,
         type: isBoss ? 'boss' : 'normal',
         health: isBoss ? 3 : 1
       }
       setInvaders(prev => [...prev, newInvader])
-    }, Math.max(500, 2000 - wave * 150))
+    }, config.spawnRate)
 
     return () => clearInterval(spawnInterval)
-  }, [gameStarted, gameEnded, wave])
+  }, [gameStarted, gameEnded, level, levelWords])
 
   // Game loop for moving invaders and particles
   useEffect(() => {
     if (!gameStarted || gameEnded) return
 
     gameLoopRef.current = setInterval(() => {
-      timeRef.current += 30
-
-      // Increase wave every 60 seconds
-      if (timeRef.current % 60000 === 0 && timeRef.current > 0) {
-        setWave(prev => prev + 1)
-      }
-
       setInvaders(prev => {
         const updated = prev.map(invader => ({
           ...invader,
@@ -144,10 +173,10 @@ export default function Invaders({ onBack }: InvadersProps) {
     setCurrentInput('')
     setScore(0)
     setLives(5)
-    setWave(1)
+    setLevel(1)
+    setDestroyedInLevel(0)
     setCombo(0)
     setParticles([])
-    timeRef.current = 0
     invaderIdRef.current = 0
     particleIdRef.current = 0
     inputRef.current?.focus()
@@ -160,12 +189,20 @@ export default function Invaders({ onBack }: InvadersProps) {
     setCurrentInput('')
     setScore(0)
     setLives(5)
-    setWave(1)
+    setLevel(1)
+    setDestroyedInLevel(0)
     setCombo(0)
     setParticles([])
-    timeRef.current = 0
     invaderIdRef.current = 0
     particleIdRef.current = 0
+  }
+
+  const handleLevelUp = () => {
+    setLevel(prev => prev + 1)
+    setDestroyedInLevel(0)
+    setInvaders([])
+    setCurrentInput('')
+    // Keep combo bonus for advancing levels
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -196,6 +233,15 @@ export default function Invaders({ onBack }: InvadersProps) {
         const bonusScore = (matchedInvader.type === 'boss' ? 50 : 10) + combo * 2
         setScore(prev => prev + bonusScore)
         setCombo(prev => prev + 1)
+
+        // Check level progression
+        const newDestroyed = destroyedInLevel + 1
+        const config = getLevelConfig()
+        setDestroyedInLevel(newDestroyed)
+
+        if (newDestroyed >= config.wordCount) {
+          handleLevelUp()
+        }
       } else {
         // Damage boss
         setInvaders(prev =>
@@ -250,16 +296,16 @@ export default function Invaders({ onBack }: InvadersProps) {
           <div className="text-2xl font-bold text-secondary">{'❤️'.repeat(lives)}</div>
         </Card>
         <Card className="p-3 text-center border-accent/50 bg-accent/5">
-          <div className="text-xs text-muted-foreground">WAVE</div>
-          <div className="text-2xl font-bold text-accent">{wave}</div>
+          <div className="text-xs text-muted-foreground">LEVEL</div>
+          <div className="text-2xl font-bold text-accent">{level}</div>
         </Card>
         <Card className="p-3 text-center border-yellow-500/50 bg-yellow-500/5">
           <div className="text-xs text-muted-foreground">COMBO</div>
           <div className="text-2xl font-bold text-yellow-500">{combo}x</div>
         </Card>
         <Card className="p-3 text-center border-border">
-          <div className="text-xs text-muted-foreground">ENEMIES</div>
-          <div className="text-2xl font-bold">{invaders.length}</div>
+          <div className="text-xs text-muted-foreground">PROGRESS</div>
+          <div className="text-2xl font-bold">{destroyedInLevel}/{getLevelConfig().wordCount}</div>
         </Card>
       </div>
 
@@ -342,12 +388,16 @@ export default function Invaders({ onBack }: InvadersProps) {
                 GAME OVER
               </div>
               <p className="text-red-300/80 text-xl mb-4">
-                You survived {wave} waves
+                You reached level {level}
               </p>
-              <div className="grid grid-cols-2 gap-6 mb-8 bg-white/5 p-6 rounded-lg border border-white/10">
+              <div className="grid grid-cols-3 gap-6 mb-8 bg-white/5 p-6 rounded-lg border border-white/10">
                 <div>
                   <div className="text-sm text-cyan-300">FINAL SCORE</div>
                   <div className="text-4xl font-bold text-cyan-400">{score}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-purple-300">MAX LEVEL</div>
+                  <div className="text-4xl font-bold text-purple-400">{level}</div>
                 </div>
                 <div>
                   <div className="text-sm text-yellow-300">MAX COMBO</div>
@@ -401,7 +451,7 @@ export default function Invaders({ onBack }: InvadersProps) {
       {!gameStarted && (
         <Card className="p-4 bg-slate-900/50 border-cyan-500/30">
           <p className="text-sm text-cyan-300/80 text-center">
-            💡 <strong>Tips:</strong> Type complete words to destroy enemies. Boss enemies (red) take 3 hits. Build combos for bonus points!
+            <strong>Level System:</strong> Each level has unique words and increases in difficulty. Level 1 starts with 10 words at slow speed. Higher levels have more words and faster enemies. Destroy all words in a level to advance!
           </p>
         </Card>
       )}
