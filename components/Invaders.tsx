@@ -122,11 +122,20 @@ export default function Invaders({ onBack }: InvadersProps) {
 
     gameLoopRef.current = setInterval(() => {
       setInvaders(prev => {
-        const updated = prev.map(invader => ({
-          ...invader,
-          y: invader.y + invader.vy,
-          x: invader.x + invader.vx
-        }))
+        const updated = prev.map(invader => {
+          let newX = invader.x + invader.vx
+          // Bounce off edges to keep words visible
+          if (newX < 5) {
+            newX = 5
+          } else if (newX > 95) {
+            newX = 95
+          }
+          return {
+            ...invader,
+            y: invader.y + invader.vy,
+            x: newX
+          }
+        })
 
         // Check for invaders reaching bottom (loss of life)
         const reachedBottom = updated.filter(inv => inv.y > 100 && inv.alive)
@@ -333,7 +342,7 @@ export default function Invaders({ onBack }: InvadersProps) {
                 key={invader.id}
                 className={`absolute transition-all duration-75 ${isHit ? 'scale-150 opacity-0' : 'scale-100 opacity-100'}`}
                 style={{ 
-                  left: `${Math.max(0, Math.min(100, invader.x))}%`,
+                  left: `${invader.x}%`,
                   top: `${invader.y}%`,
                   transform: 'translate(-50%, -50%)'
                 }}
