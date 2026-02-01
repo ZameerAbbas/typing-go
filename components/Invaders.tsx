@@ -348,23 +348,45 @@ export default function Invaders({ onBack }: InvadersProps) {
         <div className="absolute inset-0 pointer-events-none">
           {invaders.map(invader => {
             if (!invader.alive) return null
-            const isHit = currentInput.toLowerCase() === invader.word.toLowerCase()
+            const word = invader.word.toLowerCase()
+            const inputLower = currentInput.toLowerCase()
+            const isMatching = word.startsWith(inputLower)
+            const isComplete = inputLower === word
+            const matchLength = isMatching ? inputLower.length : 0
+            
             return (
               <div
                 key={invader.id}
-                className={`absolute transition-all duration-75 ${isHit ? 'scale-150 opacity-0' : 'scale-100 opacity-100'}`}
+                className={`absolute transition-all duration-75 ${isComplete ? 'scale-150 opacity-0' : 'scale-100 opacity-100'}`}
                 style={{ 
                   left: `${invader.x}%`,
                   top: `${invader.y}%`,
                   transform: 'translate(-50%, -50%)'
                 }}
               >
-                <div className={`px-3 py-1 rounded font-mono font-bold whitespace-nowrap shadow-xl ${
+                <div className={`px-3 py-1 rounded font-mono font-bold whitespace-nowrap shadow-xl transition-all ${
                   invader.type === 'boss' 
-                    ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white border-2 border-yellow-300 text-sm animate-pulse'
-                    : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white border border-cyan-300 text-xs'
+                    ? isMatching
+                      ? 'bg-gradient-to-r from-yellow-500 to-orange-400 text-white border-2 border-yellow-200 text-sm'
+                      : 'bg-gradient-to-r from-red-500 to-orange-500 text-white border-2 border-yellow-300 text-sm animate-pulse'
+                    : isMatching
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white border border-green-300 text-xs'
+                      : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white border border-cyan-300 text-xs'
                 }`}>
-                  {invader.word}
+                  <span className="inline-flex gap-0.5">
+                    {word.split('').map((char, idx) => (
+                      <span
+                        key={idx}
+                        className={`transition-all duration-150 ${
+                          idx < matchLength 
+                            ? 'opacity-100 line-through text-yellow-200 font-extrabold' 
+                            : 'opacity-100'
+                        }`}
+                      >
+                        {char}
+                      </span>
+                    ))}
+                  </span>
                   {invader.type === 'boss' && invader.health > 1 && (
                     <span className="ml-2 text-yellow-300">[{invader.health}]</span>
                   )}
